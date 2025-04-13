@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ultimate To-Do Prioritizer</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --box: #1e1e1e;
+      --text: #fff;
+      --accent: #00adb5;
+    }
+
+    body.light {
+      --bg: #f9f9f9;
+      --box: white;
+      --text: #111;
+      --accent: #007bff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      transition: 0.3s ease;
+    }
+
+    .todo-container {
+      background: var(--box);
+      padding: 20px;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    h1 {
+      text-align: center;
+      color: var(--accent);
+    }
+
+    .controls input, .controls select {
+      width: calc(50% - 5px);
+      padding: 8px;
+      margin: 5px 2px;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls button {
+      padding: 8px 12px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      margin: 5px 2px;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      opacity: 0.9;
+    }
+
+    .search-clear {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+    }
+
+    .search-clear input {
+      flex-grow: 1;
+      padding: 8px;
+      border-radius: 5px;
+      border: none;
+      margin-right: 10px;
+    }
+
+    .search-clear button {
+      background: crimson;
+      color: white;
+      border: none;
+      padding: 8px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      background: rgba(255,255,255,0.05);
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from {opacity:0; transform:translateY(-10px);}
+      to {opacity:1; transform:translateY(0);}
+    }
+
+    li.completed {
+      text-decoration: line-through;
+      opacity: 0.6;
+    }
+
+    .task-meta {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .task-meta span {
+      font-size: 0.8em;
+      opacity: 0.8;
+    }
+
+    .task-actions button {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      margin-left: 5px;
+    }
+
+    #emptyMessage {
+      text-align: center;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="todo-container">
+  <h1>📝 Ultimate To-Do Prioritizer</h1>
+
+  <div class="controls">
+    <input type="text" id="taskTitle" placeholder="Task Title..." />
+    <input type="text" id="taskNote" placeholder="Notes (optional)..." />
+    <input type="date" id="taskDate" />
+    <select id="taskPriority">
+      <option value="High">High 🔥</option>
+      <option value="Medium">Medium ⚡</option>
+      <option value="Low">Low 💧</option>
+    </select>
+    <button onclick="addTask()">Add Task</button>
+    <button onclick="toggleTheme()">🌓</button>
+  </div>
+
+  <div class="search-clear">
+    <input type="text" id="searchInput" placeholder="Search tasks..." onkeyup="filterTasks()" />
+    <button onclick="clearAllTasks()">Clear All</button>
+  </div>
+
+  <ul id="taskList"></ul>
+  <p id="emptyMessage">🎉 Nothing to do! Add your first task!</p>
+</div>
+
+<script>
+  let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+  const priorityRank = { "High": 1, "Medium": 2, "Low": 3 };
+
+  function saveTasks() {
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+  }
+
+  function renderTasks() {
+    const list = document.getElementById("taskList");
+    const empty = document.getElementById("emptyMessage");
+    list.innerHTML = "";
+
+    tasks.sort((a, b) => {
+      if (priorityRank[a.priority] !== priorityRank[b.priority]) {
+        return priorityRank[a.priority] - priorityRank[b.priority];
+      }
+      return new Date(a.date || "9999-12-31") - new Date(b.date || "9999-12-31");
+    });
+
+    if (tasks.length === 0) {
+      empty.style.display = "block";
+    } else {
+      empty.style.display = "none";
+      tasks.forEach((task, index) => {
+        const li = document.createElement("li");
+        li.className = task.completed ? "completed" : "";
+
+        li.innerHTML = `
+          <div class="task-meta">
+            <strong>${task.title}</strong>
+            <span>${task.note ? task.note + " | " : ""} ${task.priority} Priority ${task.date ? "| 📅 " + task.date : ""}</span>
+          </div>
+          <div class="task-actions">
+            <button onclick="toggleComplete(${index})">✅</button>
+            <button onclick="editTask(${index})">✏️</button>
+            <button onclick="deleteTask(${index})">&times;</button>
+          </div>
+        `;
+        list.appendChild(li);
+      });
+    }
+  }
+
+  function addTask() {
+    const title = document.getElementById("taskTitle").value.trim();
+    const note = document.getElementById("taskNote").value.trim();
+    const date = document.getElementById("taskDate").value;
+    const priority = document.getElementById("taskPriority").value;
+
+    if (!title) {
+      alert("Task title is required!");
+      return;
+    }
+
+    tasks.push({ title, note, date, priority, completed: false });
+    saveTasks();
+    renderTasks();
+
+    document.getElementById("taskTitle").value = "";
+    document.getElementById("taskNote").value = "";
+    document.getElementById("taskDate").value = "";
+  }
+
+  function toggleComplete(index) {
+    tasks[index].completed = !tasks[index].completed;
+    saveTasks();
+    renderTasks();
+  }
+
+  function deleteTask(index) {
+    if (confirm("Delete this task?")) {
+      tasks.splice(index, 1);
+      saveTasks();
+      renderTasks();
+    }
+  }
+
+  function editTask(index) {
+    const newTitle = prompt("Edit Title:", tasks[index].title);
+    if (newTitle) {
+      tasks[index].title = newTitle.trim();
+      saveTasks();
+      renderTasks();
+    }
+  }
+
+  function filterTasks() {
+    const input = document.getElementById("searchInput").value.toLowerCase();
+    const listItems = document.querySelectorAll("#taskList li");
+    listItems.forEach(item => {
+      const content = item.textContent.toLowerCase();
+      item.style.display = content.includes(input) ? "" : "none";
+    });
+  }
+
+  function clearAllTasks() {
+    if (confirm("Clear all tasks?")) {
+      tasks = [];
+      saveTasks();
+      renderTasks();
+    }
+  }
+
+  function toggleTheme() {
+    document.body.classList.toggle("light");
+  }
+
+  renderTasks();
+</script>
+</body>
+</html>
+
